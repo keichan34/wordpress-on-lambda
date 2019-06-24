@@ -3,12 +3,12 @@ Description: WordPress on AWS Lambda!
 Transform: AWS::Serverless-2016-10-31
 
 Parameters:
-  VpcSecurityGroupIds:
-    Type: 'List<AWS::EC2::SecurityGroup::Id>'
-    Default: 'sg-53af6735'
-  VpcSubnetIds:
-    Type: 'List<AWS::EC2::Subnet::Id>'
-    Default: 'subnet-0dcd7a44,subnet-a8757ef0,subnet-b19c01d6'
+  # VpcSecurityGroupIds:
+  #   Type: 'List<AWS::EC2::SecurityGroup::Id>'
+  #   Default: 'sg-53af6735'
+  # VpcSubnetIds:
+  #   Type: 'List<AWS::EC2::Subnet::Id>'
+  #   Default: 'subnet-0dcd7a44,subnet-a8757ef0,subnet-b19c01d6'
   StageName:
     Type: String
     Default: 'Prod'
@@ -50,9 +50,9 @@ Resources:
             Method: ANY
             RestApiId: !Ref restapi
 
-      VpcConfig:
-        SecurityGroupIds: !Ref VpcSecurityGroupIds
-        SubnetIds: !Ref VpcSubnetIds
+      # VpcConfig:
+      #   SecurityGroupIds: !Ref VpcSecurityGroupIds
+      #   SubnetIds: !Ref VpcSubnetIds
 
   restapi:
     Type: AWS::Serverless::Api
@@ -249,3 +249,6 @@ Outputs:
 
   CloudFrontDistributionDomainName:
     Value: !GetAtt cloudfront.DomainName
+  
+  AssetsBucketName:
+    Value: !Ref assetsS3

@@ -37,8 +37,9 @@ define( 'DB_CHARSET', 'utf8' );
 /** The Database Collate type. Don't change this if in doubt. */
 define( 'DB_COLLATE', '' );
 
-define('WP_SITEURL', 'https://[ENTER YOUR URL HERE]');
-define('WP_HOME', 'https://[ENTER YOUR URL HERE]');
+define('WP_SITEURL', 'https://[CLOUDFRONT DOMAIN NAME HERE]');
+define('WP_HOME', 'https://[CLOUDFRONT DOMAIN NAME HERE]');
+$_SERVER['HTTP_HOST'] = '[CLOUDFRONT DOMAIN NAME HERE]';
 
 /**#@+
  * Authentication Unique Keys and Salts.
