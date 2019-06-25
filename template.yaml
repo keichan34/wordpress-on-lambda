@@ -3,12 +3,12 @@ Description: WordPress on AWS Lambda!
 Transform: AWS::Serverless-2016-10-31
 
 Parameters:
-  # VpcSecurityGroupIds:
-  #   Type: 'List<AWS::EC2::SecurityGroup::Id>'
-  #   Default: 'sg-53af6735'
-  # VpcSubnetIds:
-  #   Type: 'List<AWS::EC2::Subnet::Id>'
-  #   Default: 'subnet-0dcd7a44,subnet-a8757ef0,subnet-b19c01d6'
+  VpcSecurityGroupIds:
+    Type: 'List<AWS::EC2::SecurityGroup::Id>'
+    Default: 'sg-53af6735'
+  VpcSubnetIds:
+    Type: 'List<AWS::EC2::Subnet::Id>'
+    Default: 'subnet-0dcd7a44,subnet-a8757ef0,subnet-b19c01d6'
   StageName:
     Type: String
     Default: 'Prod'
@@ -30,7 +30,7 @@ Resources:
       Tracing: Active
       Layers:
         # - arn:aws:lambda:us-west-2:887080169480:layer:php73:2
-        - arn:aws:lambda:us-west-2:777160072469:layer:php73:4
+        - arn:aws:lambda:us-west-2:777160072469:layer:php73:10
 
       Policies:
         - VPCAccessPolicy: {}
@@ -50,9 +50,9 @@ Resources:
             Method: ANY
             RestApiId: !Ref restapi
 
-      # VpcConfig:
-      #   SecurityGroupIds: !Ref VpcSecurityGroupIds
-      #   SubnetIds: !Ref VpcSubnetIds
+      VpcConfig:
+        SecurityGroupIds: !Ref VpcSecurityGroupIds
+        SubnetIds: !Ref VpcSubnetIds
 
   restapi:
     Type: AWS::Serverless::Api
@@ -142,7 +142,7 @@ Resources:
                 Forward: 'none'
             TargetOriginId: Assets
             ViewerProtocolPolicy: redirect-to-https
-          
+
           - PathPattern: "*.png"
             AllowedMethods:
               - GET
