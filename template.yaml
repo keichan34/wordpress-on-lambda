@@ -25,15 +25,21 @@ Resources:
       CodeUri: src/php
       Runtime: provided
       Handler: handler.php
-      MemorySize: 2048
+      MemorySize: 1344
       Timeout: 30
       Tracing: Active
       Layers:
         # - arn:aws:lambda:us-west-2:887080169480:layer:php73:2
-        - arn:aws:lambda:us-west-2:777160072469:layer:php73:10
+        - arn:aws:lambda:us-west-2:777160072469:layer:php73:11
+      
+      Environment:
+        Variables:
+          S3_UPLOADS_BUCKET: !Ref assetsS3
 
       Policies:
         - VPCAccessPolicy: {}
+        - S3FullAccessPolicy:
+            BucketName: !Ref assetsS3
 
       Events:
         apiRoot:
@@ -50,6 +56,7 @@ Resources:
             Method: ANY
             RestApiId: !Ref restapi
 
+      # Comment this out to run in public mode.
       VpcConfig:
         SecurityGroupIds: !Ref VpcSecurityGroupIds
         SubnetIds: !Ref VpcSubnetIds
@@ -60,6 +67,10 @@ Resources:
     Properties:
       StageName: !Ref StageName
       EndpointConfiguration: REGIONAL
+
+      # Accept binary uploads.
+      BinaryMediaTypes:
+        - "*~1*"
 
   cloudfront:
     Type: AWS::CloudFront::Distribution

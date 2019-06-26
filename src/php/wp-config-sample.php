@@ -41,6 +41,11 @@ define('WP_SITEURL', 'https://[CLOUDFRONT DOMAIN NAME HERE]');
 define('WP_HOME', 'https://[CLOUDFRONT DOMAIN NAME HERE]');
 $_SERVER['HTTP_HOST'] = '[CLOUDFRONT DOMAIN NAME HERE]';
 
+define( 'S3_UPLOADS_BUCKET', getenv('S3_UPLOADS_BUCKET') . '/wp-content' );
+define( 'S3_UPLOADS_USE_INSTANCE_PROFILE', true );
+define( 'S3_UPLOADS_DISABLE_REPLACE_UPLOAD_URL', true );
+define( 'S3_UPLOADS_REGION', getenv('AWS_REGION') );
+
 /**#@+
  * Authentication Unique Keys and Salts.
  *
