@@ -125,8 +125,6 @@ Resources:
           ## Defining if and how the QueryString and Cookies are forwarded to the origin which in this case is S3
           ForwardedValues:
             QueryString: 'true'
-            Headers:
-              - 'User-Agent'
             Cookies:
               Forward: whitelist
               WhitelistedNames:
@@ -217,6 +215,36 @@ Resources:
               Cookies:
                 Forward: 'none'
             TargetOriginId: Assets
+            ViewerProtocolPolicy: redirect-to-https
+
+          - PathPattern: "/wp-admin/*"
+            AllowedMethods:
+              - DELETE
+              - GET
+              - HEAD
+              - OPTIONS
+              - PATCH
+              - POST
+              - PUT
+            ## The origin id defined above
+            TargetOriginId: PhpServer
+            Compress: 'true'
+            ## Defining if and how the QueryString and Cookies are forwarded to the origin which in this case is S3
+            ForwardedValues:
+              QueryString: 'true'
+              Headers:
+                - "User-Agent"
+              Cookies:
+                Forward: whitelist
+                WhitelistedNames:
+                  - 'comment_author_*'
+                  - 'wordpress_*'
+                  - 'wp-settings-*'
+
+            MinTTL: 0
+            DefaultTTL: 0
+            MaxTTL: 31536000
+
             ViewerProtocolPolicy: redirect-to-https
 
   assetsS3:
