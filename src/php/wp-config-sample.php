@@ -46,6 +46,10 @@ define( 'S3_UPLOADS_USE_INSTANCE_PROFILE', true );
 define( 'S3_UPLOADS_DISABLE_REPLACE_UPLOAD_URL', true );
 define( 'S3_UPLOADS_REGION', getenv('AWS_REGION') );
 
+// Disable online file modification. Lambda runs in a read-only file system, so
+// this just hides options that would result in errors anyway.
+define( 'DISALLOW_FILE_MODS', true );
+
 /**#@+
  * Authentication Unique Keys and Salts.
  *
