@@ -28,8 +28,8 @@ Resources:
       Tracing: Active
       Layers:
         # - arn:aws:lambda:us-west-2:887080169480:layer:php73:2
-        - arn:aws:lambda:us-west-2:777160072469:layer:php73:11
-      
+        - !Sub "arn:aws:lambda:${AWS::Region}:887080169480:layer:php73:3"
+
       Environment:
         Variables:
           S3_UPLOADS_BUCKET: !Ref assetsS3
@@ -76,34 +76,24 @@ Resources:
       DistributionConfig:
         Origins:
           - Id: PhpServer
-            DomainName: !Join
-              - ''
-              - - !Ref restapi
-                - '.execute-api.'
-                - !Ref AWS::Region
-                - '.amazonaws.com'
+            DomainName: !Sub "${restapi}.execute-api.${AWS::Region}.amazonaws.com"
             CustomOriginConfig:
               HTTPPort: 80
               HTTPSPort: 443
               OriginProtocolPolicy: https-only
-            OriginPath: !Join ['', ['/', !Ref StageName]]
-          
+            OriginPath: !Sub "/${StageName}"
+
           - Id: Assets
-            DomainName: !Join
-              - ""
-              - - !Ref assetsS3
-                - ".s3-"
-                - !Ref AWS::Region
-                - ".amazonaws.com"
+            DomainName: !Sub "${assetsS3}.s3-${AWS::Region}.amazonaws.com"
             S3OriginConfig:
-              OriginAccessIdentity: !Join [ '', [ 'origin-access-identity/cloudfront/', !Ref cfOriginAccessIdentity ]]
+              OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${cfOriginAccessIdentity}"
 
         Enabled: 'true'
         IPV6Enabled: 'true'
         HttpVersion: 'http2'
 
         PriceClass: !Ref CloudFrontPriceClass
-        
+
         CustomErrorResponses:
           - ErrorCode: 404
             ErrorCachingMinTTL: 0
@@ -162,7 +152,7 @@ Resources:
                 Forward: 'none'
             TargetOriginId: Assets
             ViewerProtocolPolicy: redirect-to-https
-          
+
           - PathPattern: "*.jpeg"
             AllowedMethods:
               - GET
@@ -247,7 +237,7 @@ Resources:
 
   assetsS3:
     Type: AWS::S3::Bucket
-  
+
   assetsS3BucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -257,14 +247,10 @@ Resources:
           - Sid: CloudFrontOrigin
             Effect: Allow
             Principal:
-              CanonicalUser: !GetAtt cfOriginAccessIdentity.S3CanonicalUserId
+              CanonicalUser: !Sub "${cfOriginAccessIdentity.S3CanonicalUserId}"
             Action:
               - s3:GetObject
-            Resource: !Join
-              - ''
-              - - 'arn:aws:s3:::'
-                - !Ref assetsS3
-                - '/*'
+            Resource: !Sub "${assetsS3.Arn}/*"
 
   cfOriginAccessIdentity:
     Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
@@ -274,18 +260,13 @@ Resources:
 
 Outputs:
   RestApiDomainName:
-    Value: !Join
-      - ''
-      - - !Ref restapi
-        - '.execute-api.'
-        - !Ref AWS::Region
-        - '.amazonaws.com'
-  
+    Value: !Sub "${restapi}.execute-api.${AWS::Region}.amazonaws.com"
+
   CloudFrontDistributionId:
     Value: !Ref cloudfront
 
   CloudFrontDistributionDomainName:
     Value: !GetAtt cloudfront.DomainName
-  
+
   AssetsBucketName:
     Value: !Ref assetsS3
