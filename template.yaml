@@ -3,8 +3,9 @@ Description: WordPress on AWS Lambda!
 Transform: AWS::Serverless-2016-10-31
 
 Parameters:
-  VpcSecurityGroupIds:
-    Type: 'List<AWS::EC2::SecurityGroup::Id>'
+  VpcId:
+    Description: The default VPC ID in the region you're deploying to.
+    Type: 'AWS::EC2::VPC::Id'
   VpcSubnetIds:
     Type: 'List<AWS::EC2::Subnet::Id>'
   StageName:
@@ -13,6 +14,29 @@ Parameters:
   CloudFrontPriceClass:
     Type: String
     Default: 'PriceClass_200'
+  DBName:
+    Default: wordpressdb
+    Description: The WordPress database name.
+    Type: String
+    MinLength: '1'
+    MaxLength: '64'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters.
+  DBUser:
+    Default: admin
+    NoEcho: 'true'
+    Description: The WordPress database admin account username
+    Type: String
+    MinLength: '1'
+    MaxLength: '16'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters.
+  DBPassword:
+    NoEcho: 'true'
+    Description: The WordPress database admin account password. The password validation regex varies for different wordpress versions.
+    Type: String
+    MinLength: '8'
+    MaxLength: '41'
 
 Resources:
   phpserver:
@@ -33,6 +57,12 @@ Resources:
       Environment:
         Variables:
           S3_UPLOADS_BUCKET: !Ref assetsS3
+          DATABASE_ENDPOINT: !GetAtt [dbCluster, Endpoint.Address]
+          DATABASE_NAME: !Ref DBName
+          DATABASE_USER: !Ref DBUser
+          # Comment out the line below or use KMS if you have requirements for security.
+          # Otherwise, security groups should be secure enough for networking.
+          DATABASE_PASS: !Ref DBPassword
 
       Policies:
         - VPCAccessPolicy: {}
@@ -56,8 +86,24 @@ Resources:
 
       # Comment this out to run in public mode.
       VpcConfig:
-        SecurityGroupIds: !Ref VpcSecurityGroupIds
+        SecurityGroupIds:
+          - !GetAtt phpserverSecurityGroup.GroupId
         SubnetIds: !Ref VpcSubnetIds
+
+  phpserverSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: >-
+        Security group for lambda
+      VpcId: !Ref VpcId
+
+  phpserverSecurityGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    DependsOn: phpserverSecurityGroup
+    Properties:
+      GroupId: !Ref phpserverSecurityGroup
+      IpProtocol: '-1'
+      SourceSecurityGroupId: !Ref phpserverSecurityGroup
 
   restapi:
     Type: AWS::Serverless::Api
@@ -258,6 +304,34 @@ Resources:
       CloudFrontOriginAccessIdentityConfig:
         Comment: The Origin Access Identity to allow CloudFront to serve static files from the assets bucket (WordPress on Lambda)
 
+  dbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Open database for access
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '3306'
+          ToPort: '3306'
+          SourceSecurityGroupId: !GetAtt phpserverSecurityGroup.GroupId
+      VpcId: !Ref VpcId
+
+  dbCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      DBClusterIdentifier: !Join ["-", [!Ref "AWS::StackName", !Select [0, !Split ["-", !Select [2, !Split ["/", !Ref "AWS::StackId"]]]]]]
+      DatabaseName: !Ref DBName
+      MasterUsername: !Ref DBUser
+      MasterUserPassword: !Ref DBPassword
+      Engine: aurora
+      EngineMode: serverless
+      ScalingConfiguration:
+        AutoPause: true
+        MaxCapacity: 16
+        MinCapacity: 1
+        SecondsUntilAutoPause: 300
+      VpcSecurityGroupIds:
+        - !GetAtt dbSecurityGroup.GroupId
+
 Outputs:
   RestApiDomainName:
     Value: !Sub "${restapi}.execute-api.${AWS::Region}.amazonaws.com"
@@ -270,3 +344,9 @@ Outputs:
 
   AssetsBucketName:
     Value: !Ref assetsS3
+
+  DatabaseEndpoint:
+    Value: !GetAtt [dbCluster, Endpoint.Address]
+
+  DatabaseName:
+    Value: !Ref DBName
