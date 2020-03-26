@@ -13,6 +13,10 @@ Parameters:
     Default: 'Prod'
   CloudFrontPriceClass:
     Type: String
+    AllowedValues:
+      - PriceClass_100
+      - PriceClass_200
+      - PriceClass_All
     Default: 'PriceClass_200'
   DBName:
     Default: wordpressdb
@@ -24,7 +28,6 @@ Parameters:
     ConstraintDescription: must begin with a letter and contain only alphanumeric characters.
   DBUser:
     Default: admin
-    NoEcho: 'true'
     Description: The WordPress database admin account username
     Type: String
     MinLength: '1'
