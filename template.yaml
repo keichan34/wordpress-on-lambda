@@ -3,18 +3,43 @@ Description: WordPress on AWS Lambda!
 Transform: AWS::Serverless-2016-10-31
 
 Parameters:
-  VpcSecurityGroupIds:
-    Type: 'List<AWS::EC2::SecurityGroup::Id>'
-    Default: 'sg-53af6735'
+  VpcId:
+    Description: The default VPC ID in the region you're deploying to.
+    Type: 'AWS::EC2::VPC::Id'
   VpcSubnetIds:
     Type: 'List<AWS::EC2::Subnet::Id>'
-    Default: 'subnet-0dcd7a44,subnet-a8757ef0,subnet-b19c01d6'
   StageName:
     Type: String
     Default: 'Prod'
   CloudFrontPriceClass:
     Type: String
+    AllowedValues:
+      - PriceClass_100
+      - PriceClass_200
+      - PriceClass_All
     Default: 'PriceClass_200'
+  DBName:
+    Default: wordpressdb
+    Description: The WordPress database name.
+    Type: String
+    MinLength: '1'
+    MaxLength: '64'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters.
+  DBUser:
+    Default: admin
+    Description: The WordPress database admin account username
+    Type: String
+    MinLength: '1'
+    MaxLength: '16'
+    AllowedPattern: '[a-zA-Z][a-zA-Z0-9]*'
+    ConstraintDescription: must begin with a letter and contain only alphanumeric characters.
+  DBPassword:
+    NoEcho: 'true'
+    Description: The WordPress database admin account password. The password validation regex varies for different wordpress versions.
+    Type: String
+    MinLength: '8'
+    MaxLength: '41'
 
 Resources:
   phpserver:
@@ -30,11 +55,17 @@ Resources:
       Tracing: Active
       Layers:
         # - arn:aws:lambda:us-west-2:887080169480:layer:php73:2
-        - arn:aws:lambda:us-west-2:777160072469:layer:php73:11
-      
+        - !Sub "arn:aws:lambda:${AWS::Region}:887080169480:layer:php73:3"
+
       Environment:
         Variables:
           S3_UPLOADS_BUCKET: !Ref assetsS3
+          DATABASE_ENDPOINT: !GetAtt [dbCluster, Endpoint.Address]
+          DATABASE_NAME: !Ref DBName
+          DATABASE_USER: !Ref DBUser
+          # Comment out the line below or use KMS if you have requirements for security.
+          # Otherwise, security groups should be secure enough for networking.
+          DATABASE_PASS: !Ref DBPassword
 
       Policies:
         - VPCAccessPolicy: {}
@@ -58,8 +89,24 @@ Resources:
 
       # Comment this out to run in public mode.
       VpcConfig:
-        SecurityGroupIds: !Ref VpcSecurityGroupIds
+        SecurityGroupIds:
+          - !GetAtt phpserverSecurityGroup.GroupId
         SubnetIds: !Ref VpcSubnetIds
+
+  phpserverSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: >-
+        Security group for lambda
+      VpcId: !Ref VpcId
+
+  phpserverSecurityGroupIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    DependsOn: phpserverSecurityGroup
+    Properties:
+      GroupId: !Ref phpserverSecurityGroup
+      IpProtocol: '-1'
+      SourceSecurityGroupId: !Ref phpserverSecurityGroup
 
   restapi:
     Type: AWS::Serverless::Api
@@ -78,36 +125,28 @@ Resources:
       DistributionConfig:
         Origins:
           - Id: PhpServer
-            DomainName: !Join
-              - ''
-              - - !Ref restapi
-                - '.execute-api.'
-                - !Ref AWS::Region
-                - '.amazonaws.com'
+            DomainName: !Sub "${restapi}.execute-api.${AWS::Region}.amazonaws.com"
             CustomOriginConfig:
               HTTPPort: 80
               HTTPSPort: 443
               OriginProtocolPolicy: https-only
-            OriginPath: !Join ['', ['/', !Ref StageName]]
-          
+            OriginPath: !Sub "/${StageName}"
+
           - Id: Assets
-            DomainName: !Join
-              - ""
-              - - !Ref assetsS3
-                - ".s3-"
-                - !Ref AWS::Region
-                - ".amazonaws.com"
+            DomainName: !Sub "${assetsS3}.s3-${AWS::Region}.amazonaws.com"
             S3OriginConfig:
-              OriginAccessIdentity: !Join [ '', [ 'origin-access-identity/cloudfront/', !Ref cfOriginAccessIdentity ]]
+              OriginAccessIdentity: !Sub "origin-access-identity/cloudfront/${cfOriginAccessIdentity}"
 
         Enabled: 'true'
         IPV6Enabled: 'true'
         HttpVersion: 'http2'
 
         PriceClass: !Ref CloudFrontPriceClass
-        
+
         CustomErrorResponses:
           - ErrorCode: 404
+            ErrorCachingMinTTL: 0
+          - ErrorCode: 504
             ErrorCachingMinTTL: 0
 
         DefaultCacheBehavior:
@@ -164,7 +203,7 @@ Resources:
                 Forward: 'none'
             TargetOriginId: Assets
             ViewerProtocolPolicy: redirect-to-https
-          
+
           - PathPattern: "*.jpeg"
             AllowedMethods:
               - GET
@@ -249,7 +288,7 @@ Resources:
 
   assetsS3:
     Type: AWS::S3::Bucket
-  
+
   assetsS3BucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
@@ -259,14 +298,10 @@ Resources:
           - Sid: CloudFrontOrigin
             Effect: Allow
             Principal:
-              CanonicalUser: !GetAtt cfOriginAccessIdentity.S3CanonicalUserId
+              CanonicalUser: !Sub "${cfOriginAccessIdentity.S3CanonicalUserId}"
             Action:
               - s3:GetObject
-            Resource: !Join
-              - ''
-              - - 'arn:aws:s3:::'
-                - !Ref assetsS3
-                - '/*'
+            Resource: !Sub "${assetsS3.Arn}/*"
 
   cfOriginAccessIdentity:
     Type: AWS::CloudFront::CloudFrontOriginAccessIdentity
@@ -274,20 +309,49 @@ Resources:
       CloudFrontOriginAccessIdentityConfig:
         Comment: The Origin Access Identity to allow CloudFront to serve static files from the assets bucket (WordPress on Lambda)
 
+  dbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Open database for access
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '3306'
+          ToPort: '3306'
+          SourceSecurityGroupId: !GetAtt phpserverSecurityGroup.GroupId
+      VpcId: !Ref VpcId
+
+  dbCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      DBClusterIdentifier: !Join ["-", [!Ref "AWS::StackName", !Select [0, !Split ["-", !Select [2, !Split ["/", !Ref "AWS::StackId"]]]]]]
+      DatabaseName: !Ref DBName
+      MasterUsername: !Ref DBUser
+      MasterUserPassword: !Ref DBPassword
+      Engine: aurora
+      EngineMode: serverless
+      ScalingConfiguration:
+        AutoPause: true
+        MaxCapacity: 16
+        MinCapacity: 1
+        SecondsUntilAutoPause: 300
+      VpcSecurityGroupIds:
+        - !GetAtt dbSecurityGroup.GroupId
+
 Outputs:
   RestApiDomainName:
-    Value: !Join
-      - ''
-      - - !Ref restapi
-        - '.execute-api.'
-        - !Ref AWS::Region
-        - '.amazonaws.com'
-  
+    Value: !Sub "${restapi}.execute-api.${AWS::Region}.amazonaws.com"
+
   CloudFrontDistributionId:
     Value: !Ref cloudfront
 
   CloudFrontDistributionDomainName:
     Value: !GetAtt cloudfront.DomainName
-  
+
   AssetsBucketName:
     Value: !Ref assetsS3
+
+  DatabaseEndpoint:
+    Value: !GetAtt [dbCluster, Endpoint.Address]
+
+  DatabaseName:
+    Value: !Ref DBName
